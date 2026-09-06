@@ -13,6 +13,19 @@ const { checkCooldown } = require("../utils/cooldowns");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const MARRY_STEPS = [
+  "Verifying identities",
+  "Checking marriage records",
+  "Preparing certificate",
+  "Delivering proposal",
+];
+
+const DIVORCE_STEPS = [
+  "Retrieving marriage records",
+  "Preparing divorce papers",
+  "Sending request",
+];
+
 function createContext(source) {
   const isInteraction = !!source.commandName;
 
@@ -68,6 +81,39 @@ function getDuration(marriedAt) {
   if (days || !parts.length) parts.push(`${days} day${days !== 1 ? "s" : ""}`);
 
   return parts.join(", ");
+}
+
+function buildChecklist(steps, done) {
+  const lines = steps.map(
+    (step, i) => `${i < done ? "✅" : i === done ? "⏳" : "⬜"} ${step}`,
+  );
+  return ["Preparing your request...\n", ...lines].join("\n");
+}
+
+async function playChecklist(msg, steps, color, title) {
+  for (let i = 0; i <= steps.length; i++) {
+    const ok = await safeEdit(msg, {
+      embeds: [new EmbedBuilder().setColor(color).setTitle(title).setDescription(buildChecklist(steps, i))],
+    });
+    if (!ok) return false;
+    await sleep(i === steps.length ? 800 : 700);
+  }
+  return true;
+}
+
+async function resolveMember(source, ctx) {
+  if (ctx.isInteraction) {
+    const optUser = source.options.getUser("user");
+    if (optUser) {
+      return (
+        source.options.getMember("user") ||
+        (await source.guild.members.fetch(optUser.id).catch(() => ctx.member)) ||
+        ctx.member
+      );
+    }
+    return ctx.member;
+  }
+  return source.mentions.members.first() || ctx.member;
 }
 
 async function handleMarry(source) {
@@ -129,85 +175,23 @@ async function handleMarry(source) {
       new EmbedBuilder()
         .setColor("#FFD166")
         .setTitle("💍 Marriage Office")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "⏳ Verifying identities",
-            "⬜ Checking marriage records",
-            "⬜ Preparing certificate",
-            "⬜ Delivering proposal",
-          ].join("\n"),
-        ),
+        .setDescription(buildChecklist(MARRY_STEPS, 0)),
     ],
   });
 
-  await sleep(700);
-  await safeEdit(proposalMsg, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor("#FFD166")
-        .setTitle("💍 Marriage Office")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "✅ Verifying identities",
-            "⏳ Checking marriage records",
-            "⬜ Preparing certificate",
-            "⬜ Delivering proposal",
-          ].join("\n"),
-        ),
-    ],
-  });
-
-  await sleep(700);
-  await safeEdit(proposalMsg, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor("#FFD166")
-        .setTitle("💍 Marriage Office")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "✅ Verifying identities",
-            "✅ Checking marriage records",
-            "⏳ Preparing certificate",
-            "⬜ Delivering proposal",
-          ].join("\n"),
-        ),
-    ],
-  });
-
-  await sleep(700);
-  await safeEdit(proposalMsg, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor("#FFD166")
-        .setTitle("💍 Marriage Office")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "✅ Verifying identities",
-            "✅ Checking marriage records",
-            "✅ Preparing certificate",
-            "⏳ Delivering proposal",
-          ].join("\n"),
-        ),
-    ],
-  });
-
-  await sleep(800);
+  if (!(await playChecklist(proposalMsg, MARRY_STEPS, "#FFD166", "💍 Marriage Office"))) return;
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`marry_accept_${proposalMsg.id}`)
       .setLabel("Accept")
       .setEmoji("❤️")
-      .setStyle(ButtonStyle.Secondary),
+      .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`marry_decline_${proposalMsg.id}`)
       .setLabel("Decline")
       .setEmoji("💔")
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Danger)
   );
 
   await safeEdit(proposalMsg, {
@@ -225,7 +209,11 @@ async function handleMarry(source) {
             `⏳ Expires <t:${proposalEnds}:R>`,
           ].join("\n"),
         )
-        .setThumbnail(ctx.user.displayAvatarURL()),
+        .setAuthor({
+          name: `${ctx.member.displayName}'s Proposal`,
+          iconURL: ctx.user.displayAvatarURL(),
+        })
+        .setThumbnail(targetMember.user.displayAvatarURL()),
     ],
     components: [row],
     allowedMentions: { users: [targetMember.id] },
@@ -280,9 +268,9 @@ async function handleMarry(source) {
                 `<t:${Math.floor(Date.now() / 1000)}:R>`,
               ].join("\n"),
             )
-            .setThumbnail("https://em-content.zobj.net/source/apple/391/ring_1f48d.png")
+            .setThumbnail(targetMember.user.displayAvatarURL())
             .setFooter({
-              text: "Use /marriage action: partner to view your marriage certificate.",
+              text: "Use /marriage partner to view your marriage certificate.",
             }),
         ],
         components: [],
@@ -329,9 +317,8 @@ async function handlePartner(source) {
 
   await ctx.ack(false);
 
-  const member = ctx.isInteraction
-    ? ctx.member
-    : source.mentions.members.first() || ctx.member;
+  const member = await resolveMember(source, ctx);
+  if (!member) return ctx.sendMain("Couldn't find that member.");
 
   try {
     const marriage = marriageManager.getMarriage(member.id);
@@ -346,10 +333,7 @@ async function handlePartner(source) {
 
     marriageManager.updateMarriageUser(member.id, {
       name: member.displayName,
-      avatar: member.user.displayAvatarURL({
-        extension: "png",
-        size: 512,
-      }),
+      avatar: member.user.displayAvatarURL({ extension: "png", size: 512 }),
     });
 
     const partnerData = marriage.users.find((u) => u.id !== member.id);
@@ -358,10 +342,7 @@ async function handlePartner(source) {
     if (partner) {
       marriageManager.updateMarriageUser(partner.id, {
         name: partner.displayName,
-        avatar: partner.user.displayAvatarURL({
-          extension: "png",
-          size: 512,
-        }),
+        avatar: partner.user.displayAvatarURL({ extension: "png", size: 512 }),
       });
     }
 
@@ -375,23 +356,32 @@ async function handlePartner(source) {
       year: "numeric",
     });
 
+    const years = Math.floor(
+      (Date.now() - marriage.marriedAt * 1000) / 31536000000
+    );
+
     const embed = new EmbedBuilder()
       .setColor("#ff7eb6")
-      .setTitle("💕 Partner")
+      .setTitle(years >= 1 ? "🥂 Anniversary Couple" : "💕 Partner")
       .setThumbnail(leftData.avatar)
       .setImage(rightData.avatar)
-      .setDescription(
-        [
-          `## <@${leftData.id}> ❤ <@${rightData.id}>`,
-          "",
-          `💍 Together for **${getDuration(marriage.marriedAt)}**`,
-          `📅 Since **${dateString}**`,
-          "",
-          "*A bond recognized by Nyako.*",
-        ].join("\n")
+      .setDescription(`## <@${leftData.id}> ❤ <@${rightData.id}>`)
+      .addFields(
+        { name: "📅 Married Since", value: `**${dateString}**`, inline: true },
+        { name: "⏳ Together For", value: `**${getDuration(marriage.marriedAt)}**`, inline: true }
       );
 
-    return ctx.sendMain({ embeds: [embed] });
+    if (years >= 1) {
+      embed.addFields({
+        name: "🎉 Anniversary",
+        value: `**${years} year${years === 1 ? "" : "s"}!**`,
+        inline: true,
+      });
+    }
+
+    embed.setFooter({ text: "A bond recognized by Nyako." });
+
+    return ctx.sendMain({ embeds: [embed], allowedMentions: { users: [leftData.id, rightData.id] } });
   } catch (err) {
     console.error("partner command error:", err);
     return ctx.sendMain({
@@ -433,52 +423,11 @@ async function handleDivorce(source) {
       new EmbedBuilder()
         .setColor("#F4A261")
         .setTitle("⚖️ Family Court")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "⏳ Retrieving marriage records",
-            "⬜ Preparing divorce papers",
-            "⬜ Sending request",
-          ].join("\n")
-        ),
+        .setDescription(buildChecklist(DIVORCE_STEPS, 0)),
     ],
   });
 
-  await sleep(700);
-  await safeEdit(loadingMsg, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor("#F4A261")
-        .setTitle("⚖️ Family Court")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "✅ Retrieving marriage records",
-            "⏳ Preparing divorce papers",
-            "⬜ Sending request",
-          ].join("\n")
-        ),
-    ],
-  });
-
-  await sleep(700);
-  await safeEdit(loadingMsg, {
-    embeds: [
-      new EmbedBuilder()
-        .setColor("#F4A261")
-        .setTitle("⚖️ Family Court")
-        .setDescription(
-          [
-            "Preparing your request...\n",
-            "✅ Retrieving marriage records",
-            "✅ Preparing divorce papers",
-            "⏳ Sending request",
-          ].join("\n")
-        ),
-    ],
-  });
-
-  await sleep(800);
+  if (!(await playChecklist(loadingMsg, DIVORCE_STEPS, "#F4A261", "⚖️ Family Court"))) return;
 
   const uniqueId = Date.now().toString();
 
@@ -487,7 +436,7 @@ async function handleDivorce(source) {
       .setCustomId(`divorce_accept_${uniqueId}`)
       .setLabel("Finalize Divorce")
       .setEmoji("💔")
-      .setStyle(ButtonStyle.Secondary),
+      .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(`divorce_decline_${uniqueId}`)
       .setLabel("Stay Together")
@@ -580,13 +529,7 @@ async function handleDivorce(source) {
         new EmbedBuilder()
           .setColor("#9E9E9E")
           .setTitle("⌛ Divorce Request Expired")
-          .setDescription(
-            [
-              "No response was received.",
-              "",
-              "The request has expired.",
-            ].join("\n")
-          ),
+          .setDescription(["No response was received.", "", "The request has expired."].join("\n")),
       ],
       components: [],
     });
@@ -609,38 +552,31 @@ async function handleMarriages(source) {
     const user1 = marriage.users[0];
     const user2 = marriage.users[1];
 
-    const medal =
-      index === 0
-        ? "🥇"
-        : index === 1
-          ? "🥈"
-          : index === 2
-            ? "🥉"
-            : `**${index + 1}.**`;
+    const rank = ["🥇", "🥈", "🥉"][index] || `${index + 1}.`;
 
     return (
-      `${medal} <@${user1.id}> ❤️ <@${user2.id}>\n` +
-      `> 📅 Married <t:${marriage.marriedAt}:D>\n` +
-      `> ⏳ Together for <t:${marriage.marriedAt}:R>`
+      `${rank} <@${user1.id}> ❤ <@${user2.id}>\n` +
+      `> Since <t:${marriage.marriedAt}:D> · Together <t:${marriage.marriedAt}:R>`
     );
   });
+
+  const shown = Math.min(10, marriageManager.getMarriageCount());
 
   const embed = new EmbedBuilder()
     .setColor("#FF69B4")
     .setTitle("💍 Marriage Hall of Fame")
-    .setDescription(
-      lines.join("\n\n") +
-        `\n\n━━━━━━━━━━━━━━━━━━\n` +
-        `\n💞 **Total Marriages:** \`${marriageManager.getMarriageCount()}\`` +
-        `\n🏆 **Showing:** Top ${Math.min(10, marriageManager.getMarriageCount())}`
+    .setDescription(lines.join("\n\n"))
+    .addFields(
+      { name: "💞 Total Marriages", value: `\`${marriageManager.getMarriageCount()}\``, inline: true },
+      { name: "🏆 Showing", value: `Top ${shown}`, inline: true }
     )
-    .setFooter({ text: "Oldest marriages are displayed first" })
+    .setFooter({ text: "The couples who lasted the longest" })
     .setTimestamp();
 
   return ctx.sendMain({
     embeds: [embed],
     allowedMentions: {
-      users: marriages.flatMap((m) => [m.users[0].id, m.users[1].id]),
+      users: top.flatMap((m) => m.users.map((u) => u.id)),
     },
   });
 }
@@ -668,7 +604,7 @@ module.exports = {
     .addUserOption((option) =>
       option
         .setName("user")
-        .setDescription("Who you want to marry")
+        .setDescription("Which user (for marry / partner)")
         .setRequired(false)
     ),
 

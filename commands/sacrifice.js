@@ -59,21 +59,89 @@ function build(title, desc, color) {
   return new EmbedBuilder().setColor(color).setTitle(title).setDescription(desc);
 }
 
+const acceptedTexts = [
+  "was consumed without resistance.",
+  "was accepted into the void.",
+  "was quietly absorbed.",
+  "faded out of existence.",
+  "was erased like it was nothing.",
+  "was thrown into the ritual.",
+  "was taken without resistance.",
+  "was consumed by the ritual.",
+];
+
+const rejectedTexts = [
+  "slipped away just in time.",
+  "was overlooked by the ritual.",
+  "barely avoided being taken.",
+  "was ignored by the void.",
+  "escaped the ritual unnoticed.",
+  "was not consumed this time.",
+  "got skipped by the ritual flow.",
+  "was left out of the ritual.",
+];
+
+const backfireTexts = [
+  "fell into the ritual instead.",
+  "got caught in the ritual by accident.",
+  "slipped into the offering circle.",
+  "was dragged into the ritual flow instead.",
+  "walked straight into the sacrifice instead.",
+  "ended up inside the ritual somehow.",
+  "became part of the ritual instead.",
+  "accidentally joined the sacrifice.",
+  "got exchanged with the ritual's sacrifice.",
+  "was pulled into the ritual instead.",
+];
+
+const multiTexts = [
+  "were taken all at once… the system couldn't hold it.",
+  "were consumed together in one pull.",
+  "were swallowed by the ritual simultaneously.",
+  "got caught in the same ritual surge.",
+  "were pulled in as a group offering.",
+  "were taken all at once.",
+  "were all included in the outcome at once.",
+  "vanished together without separation.",
+];
+
+const fractureStates = [
+  "the ritual begins to take shape...",
+  "offerings are being evaluated...",
+  "the void hesitates...",
+  "selection pressure increasing...",
+  "the ritual cannot stabilize...",
+  "judgement fractures forming...",
+  "the offering resists completion...",
+];
+
 async function runSacrifice(source, explicitTargetMember = null) {
   const ctx = createContext(source);
   await ctx.ack();
 
+  if (!ctx.guild) {
+    return ctx.sendMain({ content: "This command only works in a server." });
+  }
+
+  const key = channelKey(ctx.channel);
+
   try {
-    if (!ctx.guild) {
-      return ctx.sendMain({ content: "This command only works in a server." });
+    if (activeSacrifices.has(key)) {
+      return ctx.sendMain({ content: "A ritual is already in progress in this channel." });
     }
 
-    const key = channelKey(ctx.channel);
-    if (activeSacrifices.has(key)) {
+    const remaining = checkCooldown(ctx.user.id, "sacrifice", 60);
+    if (remaining) {
       return ctx.sendMain({
-        content: "A ritual is already in progress in this channel.",
+        content: `⏳ Please wait **${remaining}s** the ritual was recently fed.`,
       });
     }
+
+    if (explicitTargetMember?.user.bot) {
+      return ctx.sendMain({ content: "The ritual refuses bot offerings." });
+    }
+
+    activeSacrifices.add(key);
 
     let membersSource;
     try {
@@ -90,113 +158,71 @@ async function runSacrifice(source, explicitTargetMember = null) {
       });
     }
 
-    const remaining = checkCooldown(ctx.user.id, "sacrifice", 60);
-    if (remaining) {
-      return ctx.sendMain({
-        content: `⏳ Please wait **${remaining}s** the ritual was recently fed.`,
-      });
-    }
+    const selfId = ctx.member?.id ?? ctx.user.id;
+    const poolWithoutSelf = members.filter((m) => m.id !== selfId);
 
-    activeSacrifices.add(key);
+    if (!poolWithoutSelf.length) {
+      return ctx.sendMain({ content: "The ritual found no valid targets." });
+    }
 
     let targets = [];
     let isMulti = false;
 
     const roll = Math.random();
-    const selfId = ctx.member?.id ?? ctx.user.id;
-    const poolWithoutSelf = members.filter((m) => m.id !== selfId);
-
-    if (!poolWithoutSelf.length) {
-      activeSacrifices.delete(key);
-      return ctx.sendMain({
-        content: "The ritual found no valid targets.",
-      });
-    }
-
     if (roll < 0.1) {
       isMulti = true;
-
       const shuffled = [...poolWithoutSelf].sort(() => Math.random() - 0.5);
       const count = Math.min(Math.floor(Math.random() * 3) + 2, shuffled.length);
       targets = shuffled.slice(0, count);
+    } else if (explicitTargetMember) {
+      targets.push(explicitTargetMember);
     } else {
-      if (explicitTargetMember && !explicitTargetMember.user.bot) {
-        targets.push(explicitTargetMember);
-      } else {
-        targets.push(pick(poolWithoutSelf));
-      }
-    }
-
-    targets = targets.filter(Boolean);
-    if (!targets.length) {
-      activeSacrifices.delete(key);
-      return ctx.sendMain({ content: "The ritual failed to find a target." });
+      targets.push(pick(poolWithoutSelf));
     }
 
     const fmt = (m) => `<@${m.id}>`;
-
+    const allowedUserIds = [
+      ...new Set(targets.map((m) => m.id).concat(ctx.member?.id ? [ctx.member.id] : [])),
+    ];
     const formatTargets = (arr) => {
       if (arr.length === 1) return arr[0];
       if (arr.length === 2) return `${arr[0]} & ${arr[1]}`;
       return `${arr.slice(0, -1).join(" ")} & ${arr[arr.length - 1]}`;
     };
 
-    const allowedUserIds = [...new Set(targets.map((m) => m.id).concat(ctx.member?.id ? [ctx.member.id] : []))];
-
     const msg = await ctx.sendMain({
       embeds: [
         build(
           "☠️ THE RITUAL AWAKENS",
-          isMulti ? "…something is wrong." : "a presence has been marked.",
+          isMulti ? "…a crowd of echoes stirs." : "a presence has been marked.",
           "DarkRed"
         ),
       ],
       allowedMentions: { users: allowedUserIds },
     });
 
-    const replyMessage = ctx.isInteraction ? await source.fetchReply() : msg;
+    const edit = (payload) => safeEdit(msg, payload);
+    const fail = (ok) => !ok;
 
-    await sleep(1200);
+    await sleep(1100);
+    if (fail(await edit({ embeds: [build("☠️ SIGNAL ACQUIRED", "the system is listening…", "Red")], allowedMentions: { users: allowedUserIds } }))) return;
 
+    await sleep(1100);
     if (
-      !(await safeEdit(replyMessage, {
-        embeds: [build("☠️ SIGNAL ACQUIRED", "the system is listening…", "Red")],
-        allowedMentions: { users: allowedUserIds },
-      }))
-    ) {
-      activeSacrifices.delete(key);
+      fail(
+        await edit({
+          embeds: [
+            build(
+              "🩸 SOMETHING IS RESPONDING",
+              isMulti ? "…too many echoes detected" : "subject instability rising",
+              "DarkOrange"
+            ),
+          ],
+          allowedMentions: { users: allowedUserIds },
+        })
+      )
+    )
       return;
-    }
-
-    await sleep(1200);
-
-    if (
-      !(await safeEdit(replyMessage, {
-        embeds: [
-          build(
-            "🩸 SOMETHING IS RESPONDING",
-            isMulti ? "…too many echoes detected" : "subject instability rising",
-            "DarkOrange"
-          ),
-        ],
-        allowedMentions: { users: allowedUserIds },
-      }))
-    ) {
-      activeSacrifices.delete(key);
-      return;
-    }
-
-    await sleep(1200);
-
-    const fractureStates = [
-      "the ritual begins to take shape...",
-      "offerings are being evaluated...",
-      "the void hesitates...",
-      "selection pressure increasing...",
-      "the ritual cannot stabilize...",
-      "judgement fractures forming...",
-      "the offering resists completion...",
-    ];
 
     const makeGlitchBar = (percent, size = 20) => {
       let bar = "";
@@ -227,207 +253,119 @@ async function runSacrifice(source, explicitTargetMember = null) {
         let base = `${fractureStates[i]}\n\n${bar}\n\`stability: ${Math.floor(percent)}%\``;
 
         if (Math.random() < 0.22) {
+          const chars = "▓▒░#*&@%$!";
           base = base
             .split("")
-            .map((c) => {
-              const chars = "▓▒░#*&@%$!";
-              return Math.random() < 0.08
-                ? chars[Math.floor(Math.random() * chars.length)]
-                : c;
-            })
+            .map((c) => (Math.random() < 0.08 ? pick(chars) : c))
             .join("");
         }
 
-        if (
-          !(await safeEdit(replyMessage, {
-            embeds: [build("☠️ RITUAL IN PROGRESS", base, "Orange")],
-            allowedMentions: { users: allowedUserIds },
-          }))
-        ) {
-          activeSacrifices.delete(key);
-          return;
-        }
+        if (fail(await edit({ embeds: [build("☠️ RITUAL IN PROGRESS", base, "Orange")], allowedMentions: { users: allowedUserIds } }))) return;
 
-        await sleep(450);
+        await sleep(380);
       }
     }
 
     if (
-      !(await safeEdit(replyMessage, {
-        embeds: [
-          build(
-            "☠️ RITUAL CONVERGENCE",
-            `THE OFFERING HAS RESOLVED\n\n${progressBar(100)}\n\`FINAL SELECTION DONE\``,
-            "DarkRed"
-          ),
-        ],
-        allowedMentions: { users: allowedUserIds },
-      }))
-    ) {
-      activeSacrifices.delete(key);
+      fail(
+        await edit({
+          embeds: [
+            build(
+              "☠️ RITUAL CONVERGENCE",
+              `THE OFFERING HAS RESOLVED\n\n${progressBar(100)}\n\`FINAL SELECTION DONE\``,
+              "DarkRed"
+            ),
+          ],
+          allowedMentions: { users: allowedUserIds },
+        })
+      )
+    )
       return;
-    }
 
-    await sleep(900);
-    await sleep(1200);
+    await sleep(1000);
 
     if (
-      !(await safeEdit(replyMessage, {
-        embeds: [
-          build(
-            "☠️ ENTITY DECIDING OUTCOME",
-            isMulti ? "It is no longer one target…" : "Judgement is IMMINENT",
-            "Red"
-          ),
-        ],
-        allowedMentions: { users: allowedUserIds },
-      }))
-    ) {
-      activeSacrifices.delete(key);
+      fail(
+        await edit({
+          embeds: [
+            build(
+              "☠️ ENTITY DECIDING OUTCOME",
+              isMulti ? "It is no longer one target…" : "Judgement is IMMINENT",
+              "Red"
+            ),
+          ],
+          allowedMentions: { users: allowedUserIds },
+        })
+      )
+    )
       return;
-    }
 
-    await sleep(1200);
+    await sleep(1100);
 
     const outcomeRoll = Math.random();
-
-    let outcome;
-    if (outcomeRoll < 0.5) outcome = "accepted";
-    else if (outcomeRoll < 0.85) outcome = "rejected";
-    else outcome = "backfire";
-
-    const acceptedTexts = [
-      "was consumed without resistance.",
-      "was accepted into the void.",
-      "was quietly absorbed.",
-      "faded out of existence.",
-      "was erased like it was nothing.",
-      "was thrown into the ritual.",
-      "was taken without resistance.",
-      "was consumed by the ritual.",
-    ];
-
-    const rejectedTexts = [
-      "slipped away just in time.",
-      "was overlooked by the ritual.",
-      "barely avoided being taken.",
-      "was ignored by the void.",
-      "escaped the ritual unnoticed.",
-      "was not consumed this time.",
-      "got skipped by the ritual flow.",
-      "was left out of the ritual.",
-    ];
-
-    const backfireTexts = [
-      "fell into the ritual instead.",
-      "got caught in the ritual by accident.",
-      "slipped into the offering circle.",
-      "was dragged into the ritual flow instead.",
-      "walked straight into the sacrifice instead.",
-      "ended up inside the ritual somehow.",
-      "became part of the ritual instead.",
-      "accidentally joined the sacrifice.",
-      "got exchanged with the ritual's sacrifice.",
-      "was pulled into the ritual instead.",
-    ];
+    const outcome =
+      outcomeRoll < 0.5 ? "accepted" : outcomeRoll < 0.85 ? "rejected" : "backfire";
 
     let text;
-    let color = "DarkRed";
+    let color;
 
     if (isMulti) {
       const names = targets.map(fmt);
-
       const frames = [
-        `${names[0]}`,
-        `${formatTargets(names.slice(0, 2))}`,
-        `${formatTargets(names.slice(0, 3))}`,
-        `${formatTargets(names)} ${pick([
-          "were taken all at once… system couldn’t hold it.",
-          "were consumed together in one pull.",
-          "were swallowed by the ritual simultaneously.",
-          "got caught in the same ritual surge.",
-          "were pulled in as a group offering.",
-          "were taken all at once.",
-          "were all included in the outcome at once.",
-          "vanished together without separation.",
-        ])}`,
+        names[0],
+        formatTargets(names.slice(0, 2)),
+        formatTargets(names.slice(0, 3)),
+        `${formatTargets(names)} ${pick(multiTexts)}`,
       ];
-
-      color = "Purple";
+      const frameColors = ["DarkRed", "Red", "Orange", "Purple"];
 
       for (let i = 0; i < frames.length; i++) {
         if (
-          !(await safeEdit(replyMessage, {
-            embeds: [
-              new EmbedBuilder()
-                .setColor(
-                  i === 0
-                    ? "DarkRed"
-                    : i === 1
-                    ? "Red"
-                    : i === 2
-                    ? "Orange"
-                    : "Purple"
-                )
-                .setTitle("☠️ SACRIFICE RESULT")
-                .setDescription(frames[i]),
-            ],
-            allowedMentions: { users: allowedUserIds },
-          }))
-        ) {
-          activeSacrifices.delete(key);
+          fail(
+            await edit({
+              embeds: [
+                new EmbedBuilder()
+                  .setColor(frameColors[i])
+                  .setTitle("☠️ SACRIFICE RESULT")
+                  .setDescription(frames[i]),
+              ],
+              allowedMentions: { users: allowedUserIds },
+            })
+          )
+        )
           return;
-        }
 
         await sleep(800);
       }
 
       text = frames[frames.length - 1];
+      color = "Purple";
     } else {
       const originalTarget = targets[0];
       const target = outcome === "backfire" ? ctx.member : originalTarget;
 
-      if (
-        !(await safeEdit(replyMessage, {
-          embeds: [build("☠️ SACRIFICE RESULT", `${fmt(target)}`, "Blue")],
-          allowedMentions: { users: allowedUserIds },
-        }))
-      ) {
-        activeSacrifices.delete(key);
-        return;
+      for (const suffix of ["", " ..."]) {
+        if (
+          fail(
+            await edit({
+              embeds: [build("☠️ SACRIFICE RESULT", `${fmt(target)}${suffix}`, "Blue")],
+              allowedMentions: { users: allowedUserIds },
+            })
+          )
+        )
+          return;
+
+        await sleep(850);
       }
 
-      await sleep(900);
-
-      if (
-        !(await safeEdit(replyMessage, {
-          embeds: [build("☠️ SACRIFICE RESULT", `${fmt(target)} ...`, "Orange")],
-          allowedMentions: { users: allowedUserIds },
-        }))
-      ) {
-        activeSacrifices.delete(key);
-        return;
-      }
-
-      await sleep(900);
-
-      text = `${fmt(target)} ${pick(
-        outcome === "accepted"
-          ? acceptedTexts
-          : outcome === "rejected"
-          ? rejectedTexts
-          : backfireTexts
-      )}`;
-
+      const list =
+        outcome === "accepted" ? acceptedTexts : outcome === "rejected" ? rejectedTexts : backfireTexts;
+      text = `${fmt(target)} ${pick(list)}`;
       color =
-        outcome === "accepted"
-          ? "Green"
-          : outcome === "rejected"
-          ? "Orange"
-          : "Red";
+        outcome === "accepted" ? "Green" : outcome === "rejected" ? "Orange" : "Red";
     }
 
-    await safeEdit(replyMessage, {
+    await edit({
       embeds: [
         new EmbedBuilder()
           .setColor(color)
@@ -437,12 +375,11 @@ async function runSacrifice(source, explicitTargetMember = null) {
       ],
       allowedMentions: { users: allowedUserIds },
     });
-
-    activeSacrifices.delete(key);
   } catch (err) {
-    console.error(err);
-    activeSacrifices.delete(channelKey(ctx.channel));
+    console.error("sacrifice error:", err);
     return ctx.sendMain({ content: "the ritual failed to stabilize." });
+  } finally {
+    activeSacrifices.delete(key);
   }
 }
 

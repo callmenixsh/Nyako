@@ -463,7 +463,8 @@ async function scheduleSleep(ctx, vc) {
       pendingText: "gonna quiet things down for you",
       doneText: "quieted things down",
       cancelledText: "keeping the noise on, your call",
-      cancelLabel: "let me listen",
+      cancelLabel: "Keep sound on",
+      cancelEmoji: "🔊",
       delay: 30 * 60 * 1000,
       status: "pending",
       cancelId: "cancel_sleep_deafen",
@@ -483,7 +484,8 @@ async function scheduleSleep(ctx, vc) {
       pendingText: "then i'll see you out",
       doneText: "saw you out",
       cancelledText: "you can stick around",
-      cancelLabel: "let me stay",
+      cancelLabel: "Stay in VC",
+      cancelEmoji: "🎧",
       delay: 60 * 60 * 1000,
       status: "pending",
       cancelId: "cancel_sleep_disconnect",
@@ -503,7 +505,8 @@ async function scheduleSleep(ctx, vc) {
       pendingText: "and after that, i'll go to sleep",
       doneText: "slept for the night",
       cancelledText: "guess i'll stay up then",
-      cancelLabel: "stay up nyako",
+      cancelLabel: "Don't shut down",
+      cancelEmoji: "🌙",
       delay: 90 * 60 * 1000,
       status: "pending",
       cancelId: "cancel_sleep_shutdown",
@@ -564,12 +567,16 @@ async function scheduleSleep(ctx, vc) {
 
     const cancelRow = new ActionRowBuilder().addComponents(
       ...pending.map(([, s]) =>
-        new ButtonBuilder().setCustomId(s.cancelId).setLabel(s.cancelLabel).setEmoji("❌").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder()
+          .setCustomId(s.cancelId)
+          .setLabel(s.cancelLabel)
+          .setEmoji(s.cancelEmoji || "❌")
+          .setStyle(ButtonStyle.Secondary)
       )
     );
 
     const shiftRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("sleep_shift_minus30").setLabel("30m sooner").setEmoji("⏪").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("sleep_shift_minus30").setLabel("30m earlier").setEmoji("⏪").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("sleep_shift_plus30").setLabel("30m later").setEmoji("⏩").setStyle(ButtonStyle.Primary)
     );
 
