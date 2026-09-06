@@ -22,6 +22,24 @@ const { safeEdit } = require("../utils/safeEdit");
 const keepaliveTargets = new Map(); // guildId → { channelId, guild }
 const connectionWatchers = new Map(); // guildId → { connection, cleanup }
 
+// Nickname applied while keepalive is active. Kept in one place so startup
+// recovery (index.js) can spot and clear leftovers after a kill/restart.
+const KEEPALIVE_NICKNAME = "Nyako - The VC guard";
+
+// Clear the keepalive nickname on a guild if it still bears it.
+// Safe to call any time — no-ops if the nickname was already changed.
+async function resetKeepaliveNickname(guild) {
+  try {
+    const me = guild.members.me;
+    if (!me) return;
+    if (me.nickname !== KEEPALIVE_NICKNAME) return;
+    await me.setNickname(null);
+    console.log(`[keepalive] Reset stale nickname in "${guild.name}".`);
+  } catch (err) {
+    console.error(`[keepalive] Failed to reset nickname in "${guild.name}":`, err.message);
+  }
+}
+
 // How long to wait before retrying after a failed reconnect (ms).
 const RECONNECT_DELAY = 5_000;
 
@@ -771,11 +789,7 @@ async function handleAfk(ctx, mode) {
   if (mode === "leave") {
     cleanupKeepalive(guild.id);
 
-    try {
-      await guild.members.me.setNickname(null);
-    } catch (err) {
-      console.error("[keepalive] Failed to reset nickname:", err.message);
-    }
+    await resetKeepaliveNickname(guild);
 
     return ctx.reply("🔇 Keepalive disabled. Left the VC.");
   }
@@ -797,7 +811,7 @@ async function handleAfk(ctx, mode) {
   }
 
   try {
-    await guild.members.me.setNickname("Nyako - The VC guard");
+    await guild.members.me.setNickname(KEEPALIVE_NICKNAME);
   } catch (err) {
     console.error("[keepalive] Failed to set nickname:", err.message);
   }
@@ -944,5 +958,7 @@ const vcCommand = {
 };
 
 vcCommand.scheduleSleep = (source, vc) => scheduleSleep(contextFrom(source), vc);
+vcCommand.resetKeepaliveNickname = resetKeepaliveNickname;
+vcCommand.keepaliveNickname = KEEPALIVE_NICKNAME;
 
 module.exports = vcCommand;

@@ -12,6 +12,19 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
+// Graceful shutdown: restore any keepalive nicknames before exiting.
+async function onShutdown() {
+  const vc = client.commands.get("vc");
+  if (client.isReady() && vc?.resetKeepaliveNickname) {
+    await Promise.allSettled(
+      [...client.guilds.cache.values()].map((g) => vc.resetKeepaliveNickname(g))
+    );
+  }
+  process.exit(0);
+}
+process.on("SIGINT", onShutdown);
+process.on("SIGTERM", onShutdown);
+
 
 const client = new Client({
     intents: [
@@ -49,6 +62,17 @@ for (const file of commandFiles) {
 
 client.on('clientReady', () => {
     console.log(`Logged in as ${client.user.tag}`);
+
+    // Self-heal: if the bot was switched off while /vc afk keepalive was
+    // running, its server nickname was never restored. Clear any leftovers.
+    const vc = client.commands.get("vc");
+    if (vc?.resetKeepaliveNickname && vc?.keepaliveNickname) {
+        for (const guild of client.guilds.cache.values()) {
+            if (guild.members.me?.nickname === vc.keepaliveNickname) {
+                vc.resetKeepaliveNickname(guild);
+            }
+        }
+    }
 });
 
 const { ActivityType } = require("discord.js");
