@@ -1,4 +1,4 @@
-const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
+const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { checkCooldown } = require("../utils/cooldowns"); // adjust path to match your project structure
 
 const pats = [
@@ -699,7 +699,7 @@ module.exports = {
     if (remaining > 0) {
       await interaction.reply({
         content: `⏳ Slow down! You can use **/nyako action:${commandName}** again in ${remaining}s.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }

@@ -1,4 +1,4 @@
-const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
+const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { safeEdit, safeEditInteraction } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
 
@@ -117,7 +117,7 @@ module.exports = {
 		if (remaining) {
 			return interaction.reply({
 				content: `⏳ Please wait **${remaining}s** The blance is realigning.`,
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		}
 

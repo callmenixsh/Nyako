@@ -6,6 +6,7 @@ const {
   ButtonStyle,
   AttachmentBuilder,
   SlashCommandBuilder,
+  MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 
@@ -474,7 +475,7 @@ async function runCourt(ctx, defendant) {
 
     verdictCollector.on("collect", async (interaction) => {
       if (interaction.user.id !== loser.id) {
-        return interaction.reply({ content: "Only the losing party may make this choice.", ephemeral: true });
+        return interaction.reply({ content: "Only the losing party may make this choice.", flags: MessageFlags.Ephemeral });
       }
 
       // ---- ACCEPT PUNISHMENT ----
@@ -555,19 +556,19 @@ async function runCourt(ctx, defendant) {
 
     readyCollector.on("collect", async (interaction) => {
       if (court.ended) {
-        return interaction.reply({ content: "⚖️ This court session has ended.", ephemeral: true });
+        return interaction.reply({ content: "⚖️ This court session has ended.", flags: MessageFlags.Ephemeral });
       }
 
       if (interaction.customId === "accuser_ready") {
         if (interaction.user.id !== accuser.id) {
-          return interaction.reply({ content: "Only the accuser can use this.", ephemeral: true });
+          return interaction.reply({ content: "Only the accuser can use this.", flags: MessageFlags.Ephemeral });
         }
         court.accuserReady = true;
       }
 
       if (interaction.customId === "defendant_ready") {
         if (interaction.user.id !== defendant.id) {
-          return interaction.reply({ content: "Only the defendant can use this.", ephemeral: true });
+          return interaction.reply({ content: "Only the defendant can use this.", flags: MessageFlags.Ephemeral });
         }
         court.defendantReady = true;
       }
@@ -612,16 +613,16 @@ async function runCourt(ctx, defendant) {
 
     trialCollector.on("collect", async (interaction) => {
       if (court.ended) {
-        return interaction.reply({ content: "⚖️ This court session has ended.", ephemeral: true });
+        return interaction.reply({ content: "⚖️ This court session has ended.", flags: MessageFlags.Ephemeral });
       }
 
       // ---- ACCUSE ----
       if (interaction.customId === "accuse") {
         if (interaction.user.id !== accuser.id) {
-          return interaction.reply({ content: "Only the accuser may present evidence.", ephemeral: true });
+          return interaction.reply({ content: "Only the accuser may present evidence.", flags: MessageFlags.Ephemeral });
         }
         if (court.accuserRolls <= 0) {
-          return interaction.reply({ content: "No accusations remaining.", ephemeral: true });
+          return interaction.reply({ content: "No accusations remaining.", flags: MessageFlags.Ephemeral });
         }
 
         const roll = randomRoll();
@@ -639,10 +640,10 @@ async function runCourt(ctx, defendant) {
       // ---- DEFEND ----
       if (interaction.customId === "defend") {
         if (interaction.user.id !== defendant.id) {
-          return interaction.reply({ content: "Only the defendant may defend themselves.", ephemeral: true });
+          return interaction.reply({ content: "Only the defendant may defend themselves.", flags: MessageFlags.Ephemeral });
         }
         if (court.defendantRolls <= 0) {
-          return interaction.reply({ content: "No defenses remaining.", ephemeral: true });
+          return interaction.reply({ content: "No defenses remaining.", flags: MessageFlags.Ephemeral });
         }
 
         const roll = randomRoll();
@@ -662,7 +663,7 @@ async function runCourt(ctx, defendant) {
         if (interaction.user.id !== court.withdrawAllowedId) {
           return interaction.reply({
             content: "Only the party who brought this case to trial may withdraw it.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
           });
         }
 

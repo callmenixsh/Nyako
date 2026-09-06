@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
+  MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
@@ -54,9 +55,9 @@ function createReplyAdapter(source) {
       },
       async sendEphemeral(content) {
         if (source.deferred || source.replied) {
-          return source.followUp({ content, ephemeral: true });
+          return source.followUp({ content, flags: MessageFlags.Ephemeral });
         }
-        return source.reply({ content, ephemeral: true });
+        return source.reply({ content, flags: MessageFlags.Ephemeral });
       },
     };
   }
@@ -340,7 +341,7 @@ async function runRoulette(source) {
       if (i.user.id !== ctx.user.id) {
         return i.reply({
           content: "Only the host can do that.",
-          ephemeral: true,
+          flags: MessageFlags.Ephemeral,
         });
       }
 

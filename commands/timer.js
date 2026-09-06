@@ -4,6 +4,7 @@ const {
     ButtonBuilder,
     ButtonStyle,
     SlashCommandBuilder,
+    MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 
@@ -75,7 +76,7 @@ async function runTimer({
     if (!duration) {
         return reply({
             content: "Provide a valid time.\nExamples:\n`30s`\n`2m`\n`1h30m`",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 
@@ -84,7 +85,7 @@ async function runTimer({
     if (userTimers >= 3) {
         return reply({
             content: "You already have **3 active timers**.",
-            ephemeral: true,
+            flags: MessageFlags.Ephemeral,
         });
     }
 
@@ -131,7 +132,7 @@ async function runTimer({
 
     await reply({
         content: `Started ${isReminder ? "reminder" : "timer"} for ${formatTime(duration)}.`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
     });
 
     let cancelled = false;
@@ -211,7 +212,7 @@ async function runTimer({
         if (interaction.user.id !== author.id) {
             return interaction.reply({
                 content: "Only the person who started this timer can cancel it.",
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
         }
 

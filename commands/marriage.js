@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
+  MessageFlags,
 } = require("discord.js");
 
 const marriageManager = require("../utils/marriageManager");
@@ -241,7 +242,7 @@ async function handleMarry(source) {
     if (interaction.user.id !== targetMember.id) {
       return interaction.reply({
         content: "This proposal isn't for you.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require("discord.js");
+const { SlashCommandBuilder, AttachmentBuilder, MessageFlags } = require("discord.js");
 const https = require("https");
 
 function uniqueUsers(users) {
@@ -97,7 +97,7 @@ module.exports = {
     if (!users.length) {
       return interaction.reply({
         content: "Pick up to 4 users.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

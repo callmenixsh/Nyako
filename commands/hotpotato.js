@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
+  MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
@@ -204,7 +205,7 @@ async function runHotPotato(source) {
     if (i.user.id !== currentGame.holderId) {
       return i.reply({
         content: "You do not have the potato!",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 
@@ -215,7 +216,7 @@ async function runHotPotato(source) {
     if (!availablePlayers.length) {
       return i.reply({
         content: "Nobody to pass to.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
 

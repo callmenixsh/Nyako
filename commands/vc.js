@@ -4,6 +4,7 @@ const {
   ButtonBuilder,
   ButtonStyle,
   SlashCommandBuilder,
+  MessageFlags,
 } = require("discord.js");
 const {
   joinVoiceChannel,
@@ -19,6 +20,7 @@ const { safeEdit } = require("../utils/safeEdit");
 // where to reconnect to, independent of any connection object.
 //
 const keepaliveTargets = new Map(); // guildId → { channelId, guild }
+const connectionWatchers = new Map(); // guildId → { connection, cleanup }
 
 // How long to wait before retrying after a failed reconnect (ms).
 const RECONNECT_DELAY = 5_000;
@@ -60,7 +62,7 @@ function watchConnection(guild, channelId, connection) {
   // Remove any previous listener on this connection object to avoid doubles.
   connection.removeAllListeners("stateChange");
 
-  connection.on("stateChange", async (oldState, newState) => {
+  const handleStateChange = async (oldState, newState) => {
     // If keepalive was disabled, stop doing anything.
     if (!keepaliveTargets.has(guild.id)) return;
 
@@ -89,7 +91,12 @@ function watchConnection(guild, channelId, connection) {
       // external destroy (e.g. bot kicked). Either way, reconnect.
       scheduleReconnect(guild, channelId);
     }
-  });
+  };
+
+  connection.on("stateChange", handleStateChange);
+
+  // Store the watcher for cleanup
+  connectionWatchers.set(guild.id, { connection, cleanup: () => connection.removeListener("stateChange", handleStateChange) });
 }
 
 // Debounced reconnect: prevents double-reconnect when both Disconnected and
@@ -118,6 +125,26 @@ function scheduleReconnect(guild, channelId) {
   }, RECONNECT_DELAY);
 
   reconnectTimers.set(guild.id, timer);
+}
+
+function cleanupKeepalive(guildId) {
+  // Clear reconnect timer
+  const timer = reconnectTimers.get(guildId);
+  if (timer) {
+    clearTimeout(timer);
+    reconnectTimers.delete(guildId);
+  }
+
+  // Clean up connection watcher
+  const watcher = connectionWatchers.get(guildId);
+  if (watcher) {
+    try { watcher.cleanup(); } catch {}
+    try { watcher.connection.destroy(); } catch {}
+    connectionWatchers.delete(guildId);
+  }
+
+  // Remove keepalive target
+  keepaliveTargets.delete(guildId);
 }
 
 // ─── SLEEP / TIMERS ───────────────────────────────────────────────────────────
@@ -156,7 +183,7 @@ function contextFrom(source) {
       member: source.member,
       authorId: source.user.id,
       reply: (payload) => {
-        const data = typeof payload === "string" ? { content: payload, ephemeral: true } : payload;
+        const data = typeof payload === "string" ? { content: payload, flags: MessageFlags.Ephemeral } : payload;
         return source.replied || source.deferred ? source.followUp(data) : source.reply(data);
       },
     };
@@ -242,35 +269,43 @@ async function scheduleSingleAction(ctx, { member, delayMs, title, verb, emoji, 
       console.error("vc single-action error:", err);
     }
     if (!msg.editable) return;
-    await safeEdit(msg, {
-      embeds: [
-        new EmbedBuilder()
-          .setColor("Red")
-          .setTitle(`${emoji} ${title} Complete`)
-          .setDescription(completedText(member) + `\n<t:${Math.floor(Date.now() / 1000)}:R>`)
-          .setFooter({ text: `At ${clockTime()}` }),
-      ],
-      components: [],
-    });
+    try {
+      await safeEdit(msg, {
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Red")
+            .setTitle(`${emoji} ${title} Complete`)
+            .setDescription(completedText(member) + `\n<t:${Math.floor(Date.now() / 1000)}:R>`)
+            .setFooter({ text: `At ${clockTime()}` }),
+        ],
+        components: [],
+      });
+    } catch (err) {
+      console.error("vc single-action edit error:", err);
+    }
   }, delayMs);
 
   const collector = msg.createMessageComponentCollector({ time: delayMs });
 
   collector.on("collect", async (i) => {
     if (i.user.id !== ctx.authorId) {
-      return i.reply({ content: "Only the command author can cancel this.", ephemeral: true });
+      return i.reply({ content: "Only the command author can cancel this.", flags: MessageFlags.Ephemeral });
     }
     cancelled = true;
     clearTimeout(timeout);
-    await i.update({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("Green")
-          .setTitle(`✔️ ${title} Cancelled`)
-          .setDescription(`🕊️ ${member} has been spared.`),
-      ],
-      components: [],
-    });
+    try {
+      await i.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Green")
+            .setTitle(`✔️ ${title} Cancelled`)
+            .setDescription(`🕊️ ${member} has been spared.`),
+        ],
+        components: [],
+      });
+    } catch (err) {
+      console.error("vc single-action cancel edit error:", err);
+    }
     collector.stop();
   });
 }
@@ -308,16 +343,20 @@ async function scheduleMassAction(ctx, { members, delayMs, title, verb, emoji, c
       }
     }
     if (!msg.editable) return;
-    await safeEdit(msg, {
-      embeds: [
-        new EmbedBuilder()
-          .setColor("Red")
-          .setTitle(`${emoji} ${title} Complete`)
-          .setDescription(completeText(affected.length ? affected.join(", ") : "Nobody"))
-          .setFooter({ text: `At ${clockTime()}` }),
-      ],
-      components: [],
-    });
+    try {
+      await safeEdit(msg, {
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Red")
+            .setTitle(`${emoji} ${title} Complete`)
+            .setDescription(completeText(affected.length ? affected.join(", ") : "Nobody"))
+            .setFooter({ text: `At ${clockTime()}` }),
+        ],
+        components: [],
+      });
+    } catch (err) {
+      console.error("vc mass-action edit error:", err);
+    }
   }, delayMs);
 
   if (isSleep) sleepTimers.push(timeout);
@@ -326,20 +365,34 @@ async function scheduleMassAction(ctx, { members, delayMs, title, verb, emoji, c
 
   collector.on("collect", async (i) => {
     if (i.user.id !== ctx.authorId) {
-      return i.reply({ content: "Only the command author can cancel this.", ephemeral: true });
+      return i.reply({ content: "Only the command author can cancel this.", flags: MessageFlags.Ephemeral });
     }
     cancelled = true;
     clearTimeout(timeout);
-    await i.update({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("Green")
-          .setTitle(`✔️ ${title} Cancelled`)
-          .setDescription("🕊️ Everyone has been spared."),
-      ],
-      components: [],
-    });
+    try {
+      await i.update({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Green")
+            .setTitle(`✔️ ${title} Cancelled`)
+            .setDescription("🕊️ Everyone has been spared."),
+        ],
+        components: [],
+      });
+    } catch (err) {
+      console.error("vc mass-action cancel edit error:", err);
+    }
     collector.stop();
+  });
+
+  collector.on("end", () => {
+    // Cleanup if needed
+    if (isSleep) {
+      const idx = sleepTimers.indexOf(timeout);
+      if (idx > -1) sleepTimers.splice(idx, 1);
+      const msgIdx = sleepMessages.indexOf(msg);
+      if (msgIdx > -1) sleepMessages.splice(msgIdx, 1);
+    }
   });
 }
 
@@ -456,18 +509,23 @@ async function scheduleSleep(ctx, vc) {
       cancelId: "cancel_sleep_shutdown",
       color: 0x2f3136,
       action: async () => {
-        await ctx.channel.send("🌙 alright, heading to bed. night!");
-        setTimeout(() => {
+        try {
+          await ctx.channel.send("🌙 alright, heading to bed. night!");
+          await new Promise(resolve => setTimeout(resolve, 1000));
           console.log("Bot shut down after sleep sequence.");
           ctx.channel.client.destroy();
+        } catch (err) {
+          console.error("vc sleep shutdown error:", err);
+        } finally {
           process.exit(0);
-        }, 1000);
+        }
       },
     },
   };
 
   let frame = 0;
   const timers = {};
+  let isCleanedUp = false;
 
   const activeStage = () =>
     Object.values(stages)
@@ -523,7 +581,11 @@ async function scheduleSleep(ctx, vc) {
 
   const refresh = async () => {
     if (!msg.editable) return;
-    await safeEdit(msg, { embeds: [buildEmbed()], components: buildRow() });
+    try {
+      await safeEdit(msg, { embeds: [buildEmbed()], components: buildRow() });
+    } catch (err) {
+      console.error("vc sleep refresh error:", err);
+    }
   };
 
   let animationTimer = null;
@@ -533,6 +595,34 @@ async function scheduleSleep(ctx, vc) {
       clearInterval(animationTimer);
       animationTimer = null;
     }
+  };
+
+  const cleanupTimers = () => {
+    if (isCleanedUp) return;
+    isCleanedUp = true;
+
+    // Clear animation timer
+    if (animationTimer) {
+      clearInterval(animationTimer);
+      animationTimer = null;
+    }
+
+    // Clear all stage timers
+    for (const key of Object.keys(timers)) {
+      clearTimeout(timers[key]);
+    }
+
+    // Remove from global sleepTimers
+    const idx = sleepTimers.indexOf(animationTimer);
+    if (idx > -1) sleepTimers.splice(idx, 1);
+    for (const key of Object.keys(timers)) {
+      const timerIdx = sleepTimers.indexOf(timers[key]);
+      if (timerIdx > -1) sleepTimers.splice(timerIdx, 1);
+    }
+
+    // Remove message from sleepMessages
+    const msgIdx = sleepMessages.indexOf(msg);
+    if (msgIdx > -1) sleepMessages.splice(msgIdx, 1);
   };
 
   animationTimer = setInterval(() => {
@@ -555,6 +645,12 @@ async function scheduleSleep(ctx, vc) {
       }
       await refresh();
       stopAnimationIfDone();
+
+      // Check if all stages are done and clean up
+      if (Object.values(stages).every((s) => s.status !== "pending")) {
+        cleanupTimers();
+        collector.stop();
+      }
     }, remaining);
     timers[key] = t;
     sleepTimers.push(t);
@@ -573,13 +669,12 @@ async function scheduleSleep(ctx, vc) {
     }
   };
 
-  // No fixed `time` here — the collector is stopped manually once every
-  // stage resolves, so shifting later never runs past a stale deadline.
-  const collector = msg.createMessageComponentCollector();
+  // Add a timeout to the collector to prevent memory leaks (24 hours max)
+  const collector = msg.createMessageComponentCollector({ time: 24 * 60 * 60 * 1000 });
 
   collector.on("collect", async (i) => {
     if (i.user.id !== ctx.authorId) {
-      return i.reply({ content: "only the command author can change this~", ephemeral: true });
+      return i.reply({ content: "only the command author can change this~", flags: MessageFlags.Ephemeral });
     }
 
     if (i.customId === "sleep_shift_minus30" || i.customId === "sleep_shift_plus30") {
@@ -597,15 +692,13 @@ async function scheduleSleep(ctx, vc) {
     stopAnimationIfDone();
 
     if (Object.values(stages).every((s) => s.status !== "pending")) {
+      cleanupTimers();
       collector.stop();
     }
   });
 
   collector.on("end", () => {
-    if (animationTimer) {
-      clearInterval(animationTimer);
-      animationTimer = null;
-    }
+    cleanupTimers();
   });
 }
 // ─── HANDLERS ─────────────────────────────────────────────────────────────────
@@ -648,7 +741,9 @@ async function runMassAction(ctx, actionKey, timeArg) {
 }
 
 async function handleSleepCancel(ctx) {
-  for (const timer of sleepTimers) clearTimeout(timer);
+  for (const timer of sleepTimers) {
+    try { clearTimeout(timer); } catch {}
+  }
   sleepTimers.length = 0;
 
   for (const msg of sleepMessages) {
@@ -656,27 +751,18 @@ async function handleSleepCancel(ctx) {
   }
   sleepMessages.length = 0;
 
-  return ctx.channel.send("🌙 Nevermind I guess.");
+  try {
+    return await ctx.channel.send("🌙 Nevermind I guess.");
+  } catch (err) {
+    console.error("handleSleepCancel error:", err);
+  }
 }
 
 async function handleAfk(ctx, mode) {
   const { guild } = ctx;
 
   if (mode === "leave") {
-    // Cancel any pending reconnect.
-    const timer = reconnectTimers.get(guild.id);
-    if (timer) {
-      clearTimeout(timer);
-      reconnectTimers.delete(guild.id);
-    }
-
-    keepaliveTargets.delete(guild.id);
-
-    const connection = getVoiceConnection(guild.id);
-    if (connection) {
-      connection.removeAllListeners("stateChange");
-      connection.destroy();
-    }
+    cleanupKeepalive(guild.id);
 
     try {
       await guild.members.me.setNickname(null);
@@ -830,7 +916,7 @@ const vcCommand = {
     const sub = interaction.options.getSubcommand();
     const ctx = contextFrom(interaction);
 
-    await interaction.reply({ content: "⏳ On it...", ephemeral: true });
+    await interaction.reply({ content: "⏳ On it...", flags: MessageFlags.Ephemeral });
 
     if (sub === "sleepcancel") return handleSleepCancel(ctx);
     if (sub === "afk") return handleAfk(ctx, interaction.options.getString("mode", true));

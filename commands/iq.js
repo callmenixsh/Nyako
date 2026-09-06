@@ -1,4 +1,4 @@
-const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
+const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { checkCooldown } = require("../utils/cooldowns");
 const { safeEdit, safeEditInteraction } = require("../utils/safeEdit");
 
@@ -103,7 +103,7 @@ module.exports = {
 		if (remaining) {
 			return interaction.reply({
 				content: `⏳ Please wait **${remaining}s** The scanner is cooling down.`,
-				ephemeral: true,
+				flags: MessageFlags.Ephemeral,
 			});
 		}
 

@@ -1,4 +1,4 @@
-const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
+const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { animateEmbed, animateEmbedInteraction } = require("../utils/animateEmbed");
 const { checkCooldown } = require("../utils/cooldowns");
 
@@ -147,7 +147,7 @@ module.exports = {
         if (remaining) {
             return interaction.reply({
                 content: `⏳ Please wait **${remaining}s** The vents are clear`,
-                ephemeral: true,
+                flags: MessageFlags.Ephemeral,
             });
         }
 
@@ -164,7 +164,7 @@ module.exports = {
         } else {
             target = await pickRandomTarget(interaction.guild, interaction.user.id);
             if (!target) {
-                return interaction.reply({ content: "No valid members found.", ephemeral: true });
+                return interaction.reply({ content: "No valid members found.", flags: MessageFlags.Ephemeral });
             }
         }
 

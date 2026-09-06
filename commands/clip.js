@@ -5,6 +5,7 @@ const {
   ActionRowBuilder,
   ContextMenuCommandBuilder,
   ApplicationCommandType,
+  MessageFlags,
 } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
@@ -209,7 +210,7 @@ module.exports = {
     const resolved = resolveClipChannel(interaction.guild);
 
     if (!resolved.ok) {
-      return interaction.reply({ content: resolved.reason, ephemeral: true });
+      return interaction.reply({ content: resolved.reason, flags: MessageFlags.Ephemeral });
     }
 
     const target = interaction.targetMessage;
@@ -218,7 +219,7 @@ module.exports = {
 
     return interaction.reply({
       content: `📸 Clipped and saved in ${resolved.channel}`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   },
 };

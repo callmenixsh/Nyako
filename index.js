@@ -2,7 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const sleepSequences = new Map();
 require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, MessageFlags } = require('discord.js');
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 
 const client = new Client({
@@ -39,13 +47,13 @@ for (const file of commandFiles) {
     }
 }
 
-client.on('ready', () => {
+client.on('clientReady', () => {
     console.log(`Logged in as ${client.user.tag}`);
 });
 
 const { ActivityType } = require("discord.js");
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   client.user.setPresence({
     activities: [
       {
@@ -145,7 +153,7 @@ async function handleInteractionError(interaction, err) {
 
     const errorResponse = {
         content: `❌ Command error: \`${err.message}\``,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
     };
 
     if (interaction.replied || interaction.deferred) {
