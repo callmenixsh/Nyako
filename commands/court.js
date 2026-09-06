@@ -321,7 +321,7 @@ async function runCourt(ctx, defendant) {
 
   // ─── SEND INITIAL MESSAGE ────────────────────────────────────────────────────
 
-  const courtMessage = await ctx.channel.send({
+  const courtMessage = await ctx.sendMain({
     embeds: [buildEmbed({ showCourtRecord: false })],
     components: [buildReadyRow()],
   });
@@ -474,6 +474,7 @@ async function runCourt(ctx, defendant) {
     });
 
     verdictCollector.on("collect", async (interaction) => {
+      try {
       if (interaction.user.id !== loser.id) {
         return interaction.reply({ content: "Only the losing party may make this choice.", flags: MessageFlags.Ephemeral });
       }
@@ -535,6 +536,10 @@ async function runCourt(ctx, defendant) {
       verdictCollector.stop("retrial");
       activeCourts.set(ctx.channel.id, court);
       startReadyPhase();
+      } catch (err) {
+        console.error("court verdict error:", err);
+        activeCourts.delete(ctx.channel.id);
+      }
     });
 
     verdictCollector.on("end", async (_, reason) => {
@@ -555,6 +560,7 @@ async function runCourt(ctx, defendant) {
     });
 
     readyCollector.on("collect", async (interaction) => {
+      try {
       if (court.ended) {
         return interaction.reply({ content: "⚖️ This court session has ended.", flags: MessageFlags.Ephemeral });
       }
@@ -593,6 +599,10 @@ async function runCourt(ctx, defendant) {
         embeds: [buildEmbed({ showCourtRecord: false })],
         components: [buildReadyRow()],
       });
+      } catch (err) {
+        console.error("court ready error:", err);
+        activeCourts.delete(ctx.channel.id);
+      }
     });
 
     readyCollector.on("end", (_, reason) => {
@@ -612,6 +622,7 @@ async function runCourt(ctx, defendant) {
     });
 
     trialCollector.on("collect", async (interaction) => {
+      try {
       if (court.ended) {
         return interaction.reply({ content: "⚖️ This court session has ended.", flags: MessageFlags.Ephemeral });
       }
@@ -693,6 +704,10 @@ async function runCourt(ctx, defendant) {
         });
 
         trialCollector.stop("withdrawn");
+      }
+      } catch (err) {
+        console.error("court trial error:", err);
+        activeCourts.delete(ctx.channel.id);
       }
     });
 

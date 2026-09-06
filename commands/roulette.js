@@ -265,6 +265,7 @@ async function runRoulette(source) {
       }
 
       setTimeout(async () => {
+        try {
         if (!gameActive || gameEnded) return;
 
         const playerStillHere =
@@ -280,7 +281,7 @@ async function runRoulette(source) {
           eliminated.push(player.user.tag);
           players = players.filter((p) => p.id !== player.id);
 
-          if (turnIndex > players.length) turnIndex = 0;
+          if (turnIndex >= players.length) turnIndex = 0;
 
           if (
             !(await safeEdit(msg, {
@@ -330,6 +331,10 @@ async function runRoulette(source) {
         }
 
         setTimeout(nextTurn, 2000);
+        } catch (err) {
+          console.error("roulette turn error:", err);
+          cleanup();
+        }
       }, 2000);
     };
 
@@ -338,6 +343,7 @@ async function runRoulette(source) {
     });
 
     lobbyCollector.on("collect", async (i) => {
+      try {
       if (i.user.id !== ctx.user.id) {
         return i.reply({
           content: "Only the host can do that.",
@@ -386,6 +392,10 @@ async function runRoulette(source) {
         });
 
         setTimeout(nextTurn, 2000);
+      }
+      } catch (err) {
+        console.error("roulette lobby error:", err);
+        cleanup();
       }
     });
 

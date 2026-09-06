@@ -189,7 +189,7 @@ async function runHotPotato(source) {
 
   game.statusMessage = statusMessage;
 
-  const holderMessage = await ctx.sendMain(`🥔 <@${holder.id}> has the potato!`);
+  const holderMessage = await ctx.channel.send(`🥔 <@${holder.id}> has the potato!`);
   game.holderMessage = holderMessage;
 
   hotPotatoes.set(vc.id, game);
@@ -199,6 +199,7 @@ async function runHotPotato(source) {
   });
 
   collector.on("collect", async (i) => {
+    try {
     const currentGame = hotPotatoes.get(vc.id);
     if (!currentGame || currentGame.ended) return;
 
@@ -226,6 +227,7 @@ async function runHotPotato(source) {
 
     if (Math.random() < explodeChance) {
       currentGame.ended = true;
+      if (currentGame.warningTimeout) clearTimeout(currentGame.warningTimeout);
       collector.stop("exploded");
 
       const warning = dangerMessages[Math.floor(Math.random() * dangerMessages.length)];
@@ -237,7 +239,7 @@ async function runHotPotato(source) {
 
       await ctx.channel.send(`${warning}\n💥 THE POTATO DETONATED MID-PASS!`);
 
-      const victim = message.guild.members.cache.get(currentGame.holderId);
+      const victim = ctx.guild.members.cache.get(currentGame.holderId);
       try {
         if (victim?.voice.channel) await victim.voice.setChannel(null);
       } catch {}
@@ -251,7 +253,7 @@ async function runHotPotato(source) {
       return;
     }
 
-    const currentHolder = message.guild.members.cache.get(currentGame.holderId);
+    const currentHolder = ctx.guild.members.cache.get(currentGame.holderId);
     currentGame.lastActivity = `${currentHolder.displayName} passed the 🥔 to ${target.displayName}`;
     currentGame.holderId = target.id;
 
@@ -260,6 +262,10 @@ async function runHotPotato(source) {
     await safeEdit(currentGame.holderMessage, {
       content: `🥔 <@${target.id}> has the potato!`,
     });
+    } catch (err) {
+      console.error("hotpotato pass error:", err);
+      hotPotatoes.delete(vc.id);
+    }
   });
 
   const scheduleWarning = async () => {
@@ -302,6 +308,7 @@ async function runHotPotato(source) {
   );
 
   setTimeout(async () => {
+    try {
     const currentGame = hotPotatoes.get(vc.id);
     if (!currentGame || currentGame.ended) return;
 
@@ -310,6 +317,7 @@ async function runHotPotato(source) {
 
     if (Math.random() < 0.01) {
       currentGame.ended = true;
+      if (currentGame.warningTimeout) clearTimeout(currentGame.warningTimeout);
       await updateBoard(
         currentGame,
         "# ☢️ NUCLEAR POTATO DETONATED ☢️\n💀 Everybody died."
@@ -359,6 +367,10 @@ async function runHotPotato(source) {
 
     await safeEdit(statusMessage, { components: [] });
     hotPotatoes.delete(vc.id);
+    } catch (err) {
+      console.error("hotpotato explosion error:", err);
+      hotPotatoes.delete(vc.id);
+    }
   }, explodeTime);
 }
 
