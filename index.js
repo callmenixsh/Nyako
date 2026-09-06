@@ -73,6 +73,9 @@ client.on('clientReady', () => {
             }
         }
     }
+
+    // Playful mode: schedule random antics for guilds that enabled it.
+    client.commands.get("playful")?.startPlayfulnessScheduler?.(client);
 });
 
 const { ActivityType } = require("discord.js");
@@ -92,6 +95,9 @@ client.once("clientReady", () => {
 
 client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
+
+    // Playful mode: 5% of human messages may get a playful reply.
+    client.commands.get("playful")?.onMessage?.(message);
 
     const content = message.content.trim().toLowerCase();
 

@@ -229,6 +229,11 @@ const PAGE_DATA = {
 						"Comfort: `comfort`, `apologize`, `care`",
 					].join("\n"),
 				},
+				{
+					name: "Playful Mode",
+					value:
+						"`/playful` — Let Nyako occasionally do chaotic things. `action`: `on` / `off` / `status`.",
+				},
 			],
 			prefix: [
 				{
@@ -249,6 +254,11 @@ const PAGE_DATA = {
 				{
 					name: "Comfort",
 					value: "`nya!comfort` `nya!apologize` `nya!care`",
+				},
+				{
+					name: "Playful Mode",
+					value:
+						"`nya!playful on` — enable (server-wide). `off` / `status` too.",
 				},
 			],
 		},
