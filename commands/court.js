@@ -9,6 +9,8 @@ const {
   MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
+const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 
 const activeCourts = new Map();
 
@@ -195,7 +197,15 @@ async function runCourt(ctx, defendant) {
   if (!defendant) return ctx.sendMain("⚖️ Mention somebody to put on trial.");
   if (defendant.user.bot) return ctx.sendMain("⚖️ Bots cannot stand trial.");
   if (defendant.id === ctx.user.id) return ctx.sendMain("⚖️ You cannot accuse yourself.");
-  if (activeCourts.has(ctx.channel.id)) return ctx.sendMain("⚖️ A court session is already active in this channel.");
+
+  if (activeCourts.has(ctx.channel.id)) {
+    return sendTemp(ctx, "⚖️ A court session is already active in this channel.");
+  }
+
+  const remaining = checkCooldown(ctx.user.id, "court", 30);
+  if (remaining) {
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** the bench is still warm.`);
+  }
 
   const accuser = ctx.member;
 

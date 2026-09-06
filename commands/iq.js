@@ -1,6 +1,7 @@
 const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { checkCooldown } = require("../utils/cooldowns");
 const { safeEdit, safeEditInteraction } = require("../utils/safeEdit");
+const { replyTemp } = require("../utils/sendTemp");
 
 const COOLDOWN_SECONDS = 10;
 const SCAN_FRAMES = 8;
@@ -105,7 +106,10 @@ module.exports = {
 	async execute(message) {
 		const remaining = checkCooldown(message.author.id, "iq", COOLDOWN_SECONDS);
 		if (remaining) {
-			return message.reply(`⏳ Scanner cooling down — try again in **${remaining}s**.`);
+			return replyTemp(
+				(payload) => message.reply(payload),
+				`⏳ Scanner cooling down — try again in **${remaining}s**.`
+			);
 		}
 
 		const target = message.mentions.members.first() || message.member;
@@ -119,10 +123,10 @@ module.exports = {
 	async executeInteraction(interaction) {
 		const remaining = checkCooldown(interaction.user.id, "iq", COOLDOWN_SECONDS);
 		if (remaining) {
-			return interaction.reply({
-				content: `⏳ Scanner cooling down — try again in **${remaining}s**.`,
-				flags: MessageFlags.Ephemeral,
-			});
+			return replyTemp(
+				(payload) => interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }),
+				`⏳ Scanner cooling down — try again in **${remaining}s**.`
+			);
 		}
 
 		const targetUser = interaction.options.getUser("target");

@@ -11,6 +11,9 @@ const fs = require("fs").promises;
 
 const configPath = require("path").join(__dirname, "../clipConfig.json");
 
+const { replyTemp } = require("../utils/sendTemp");
+const { checkCooldown } = require("../utils/cooldowns");
+
 const MAX_EMBEDS = 10;
 const MAX_ATTACHMENT_FIELDS = 3;
 
@@ -159,6 +162,16 @@ module.exports = {
       await saveConfig(config);
 
       return message.reply(`Clip channel set to ${channel}`);
+    }
+
+    // ---------------- COOLDOWN ----------------
+
+    const remaining = checkCooldown(message.author.id, "clip", 10);
+    if (remaining) {
+      return replyTemp(
+        (payload) => message.reply(payload),
+        `⏳ Please wait **${remaining}s** the copier is cooling off.`
+      );
     }
 
     // ---------------- CHECK SETUP ----------------

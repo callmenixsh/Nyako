@@ -1,5 +1,6 @@
 const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { safeEdit, safeEditInteraction } = require("../utils/safeEdit");
+const { replyTemp } = require("../utils/sendTemp");
 const { checkCooldown } = require("../utils/cooldowns");
 
 function pick(arr) {
@@ -91,7 +92,8 @@ module.exports = {
 		const remaining = checkCooldown(message.author.id, "judge", 10);
 
 		if (remaining) {
-			return message.reply(
+			return replyTemp(
+				(payload) => message.reply(payload),
 				`⏳ Please wait **${remaining}s** The blance is realigning.`
 			);
 		}
@@ -115,10 +117,10 @@ module.exports = {
 		const remaining = checkCooldown(interaction.user.id, "judge", 10);
 
 		if (remaining) {
-			return interaction.reply({
-				content: `⏳ Please wait **${remaining}s** The blance is realigning.`,
-				flags: MessageFlags.Ephemeral,
-			});
+			return replyTemp(
+				(payload) => interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }),
+				`⏳ Please wait **${remaining}s** The blance is realigning.`
+			);
 		}
 
 		const targetUser = interaction.options.getUser("target");

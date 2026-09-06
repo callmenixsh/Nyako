@@ -1,5 +1,6 @@
 const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { checkCooldown } = require("../utils/cooldowns"); // adjust path to match your project structure
+const { replyTemp } = require("../utils/sendTemp");
 
 const pats = [
   "🐱 *purrs happily and leans into your hand.*",
@@ -697,11 +698,13 @@ module.exports = {
     // triggered it and needs no manual cleanup, unlike the message version.
     const remaining = checkCooldown(interaction.user.id, commandName, COOLDOWN_SECONDS);
     if (remaining > 0) {
-      await interaction.reply({
-        content: `⏳ Slow down! You can use **/nyako action:${commandName}** again in ${remaining}s.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
+      return replyTemp(
+        (payload) => interaction.reply(payload),
+        {
+          content: `⏳ Slow down! You can use **/nyako action:${commandName}** again in ${remaining}s.`,
+          flags: MessageFlags.Ephemeral,
+        }
+      );
     }
 
     const embed = buildResponseEmbed(commandName, {

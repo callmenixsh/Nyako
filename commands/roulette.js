@@ -8,6 +8,7 @@ const {
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 
 const activeGames = new Map();
 
@@ -142,16 +143,12 @@ async function runRoulette(source) {
 
   const remaining = checkCooldown(ctx.user.id, "roulette", 60);
   if (remaining) {
-    return ctx.sendMain({
-      content: `⏳ Please wait **${remaining}s** The map is cleaning itself.`,
-    });
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** The map is cleaning itself.`);
   }
 
   const gameKey = getGameKey(ctx.guild.id, voiceChannel.id);
   if (activeGames.has(gameKey)) {
-    return ctx.sendMain({
-      content: "A roulette game is already running in this voice channel.",
-    });
+    return sendTemp(ctx, "A roulette game is already running in this voice channel.");
   }
 
   activeGames.set(gameKey, true);

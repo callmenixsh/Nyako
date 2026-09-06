@@ -8,6 +8,7 @@ const {
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 const hotPotatoes = require("../data/hotPotatoes");
 
 const potatoStages = [
@@ -144,7 +145,7 @@ async function runHotPotato(source) {
 
   const remaining = checkCooldown(ctx.user.id, "hotpotato", 60);
   if (remaining) {
-    return ctx.sendMain(`⏳ Please wait **${remaining}s** The potato is being prepared.`);
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** The potato is being prepared.`);
   }
 
   const vc = ctx.member?.voice?.channel;
@@ -154,7 +155,7 @@ async function runHotPotato(source) {
   if (players.length < 2) return ctx.sendMain("Need at least 2 players.");
 
   if (hotPotatoes.has(vc.id)) {
-    return ctx.sendMain("A potato game is already running!");
+    return sendTemp(ctx, "A potato game is already running!");
   }
 
   const holder = players[Math.floor(Math.random() * players.length)];

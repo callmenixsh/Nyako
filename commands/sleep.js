@@ -1,6 +1,7 @@
 const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
 const { animateEmbed } = require("../utils/animateEmbed");
 const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -81,9 +82,10 @@ async function runSleep(source, targetMember) {
 
   const remaining = checkCooldown(ctx.user.id, "sleep", 10);
   if (remaining) {
-    return ctx.sendMain({
-      content: `⏳ Please wait **${remaining}s** The advisor is resting.`,
-    });
+    return sendTemp(
+      ctx,
+      `⏳ Please wait **${remaining}s** The advisor is resting.`
+    );
   }
 
   const target = targetMember || ctx.member;

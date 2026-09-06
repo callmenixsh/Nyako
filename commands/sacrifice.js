@@ -1,6 +1,7 @@
 const { EmbedBuilder, SlashCommandBuilder } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const activeSacrifices = new Set();
@@ -127,14 +128,15 @@ async function runSacrifice(source, explicitTargetMember = null) {
 
   try {
     if (activeSacrifices.has(key)) {
-      return ctx.sendMain({ content: "A ritual is already in progress in this channel." });
+      return sendTemp(ctx, "A ritual is already in progress in this channel.");
     }
 
     const remaining = checkCooldown(ctx.user.id, "sacrifice", 60);
     if (remaining) {
-      return ctx.sendMain({
-        content: `⏳ Please wait **${remaining}s** the ritual was recently fed.`,
-      });
+      return sendTemp(
+        ctx,
+        `⏳ Please wait **${remaining}s** the ritual was recently fed.`
+      );
     }
 
     if (explicitTargetMember?.user.bot) {

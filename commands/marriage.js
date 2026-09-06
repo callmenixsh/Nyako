@@ -10,6 +10,7 @@ const {
 const marriageManager = require("../utils/marriageManager");
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
+const { sendTemp } = require("../utils/sendTemp");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -119,6 +120,11 @@ async function resolveMember(source, ctx) {
 async function handleMarry(source) {
   const ctx = createContext(source);
   await ctx.ack(false);
+
+  const remaining = checkCooldown(ctx.user.id, "marry", 30);
+  if (remaining) {
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** the officiant is preparing.`);
+  }
 
   const targetMember = ctx.isInteraction
     ? source.options.getMember("user") ||
@@ -312,7 +318,7 @@ async function handlePartner(source) {
   const remaining = checkCooldown(ctx.user.id, "partner", 10);
 
   if (remaining) {
-    return ctx.sendMain(`⏳ Please wait **${remaining}s** A certificate was recently printed.`);
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** A certificate was recently printed.`);
   }
 
   await ctx.ack(false);
@@ -394,6 +400,11 @@ async function handlePartner(source) {
 async function handleDivorce(source) {
   const ctx = createContext(source);
   await ctx.ack();
+
+  const remaining = checkCooldown(ctx.user.id, "divorce", 60);
+  if (remaining) {
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** the paperwork is still drying.`);
+  }
 
   const marriage = marriageManager.getMarriage(ctx.user.id);
   if (!marriage) return ctx.sendMain("💔 You are not married.");
@@ -539,6 +550,11 @@ async function handleDivorce(source) {
 async function handleMarriages(source) {
   const ctx = createContext(source);
   await ctx.ack(false);
+
+  const remaining = checkCooldown(ctx.user.id, "marriages", 10);
+  if (remaining) {
+    return sendTemp(ctx, `⏳ Please wait **${remaining}s** the hall is being dusted.`);
+  }
 
   const marriages = [...marriageManager.getAllMarriages()];
 

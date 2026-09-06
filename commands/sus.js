@@ -1,6 +1,7 @@
 const { EmbedBuilder, SlashCommandBuilder, MessageFlags } = require("discord.js");
 const { animateEmbed, animateEmbedInteraction } = require("../utils/animateEmbed");
 const { checkCooldown } = require("../utils/cooldowns");
+const { replyTemp } = require("../utils/sendTemp");
 
 const susReasons = [
     "acting suspicious.",
@@ -110,7 +111,8 @@ module.exports = {
     async execute(message) {
         const remaining = checkCooldown(message.author.id, "sus", 10);
         if (remaining) {
-            return message.reply(
+            return replyTemp(
+                (payload) => message.reply(payload),
                 `⏳ Please wait **${remaining}s** The vents are clear`
             );
         }
@@ -145,10 +147,10 @@ module.exports = {
     async executeInteraction(interaction) {
         const remaining = checkCooldown(interaction.user.id, "sus", 10);
         if (remaining) {
-            return interaction.reply({
-                content: `⏳ Please wait **${remaining}s** The vents are clear`,
-                flags: MessageFlags.Ephemeral,
-            });
+            return replyTemp(
+                (payload) => interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }),
+                `⏳ Please wait **${remaining}s** The vents are clear`
+            );
         }
 
         const mentionedUser = interaction.options.getUser("target");

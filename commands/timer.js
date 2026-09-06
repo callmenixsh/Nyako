@@ -7,6 +7,8 @@ const {
     MessageFlags,
 } = require("discord.js");
 const { safeEdit } = require("../utils/safeEdit");
+const { replyTemp } = require("../utils/sendTemp");
+const { checkCooldown } = require("../utils/cooldowns");
 
 const activeTimers = new Map();
 
@@ -72,6 +74,17 @@ async function runTimer({
     pingEveryone = false,
 }) {
     const duration = parseTime(durationInput);
+
+    const remaining = checkCooldown(author.id, "timer", 10);
+    if (remaining) {
+        return replyTemp(
+            (payload) => reply(payload),
+            {
+                content: `⏳ Slow down! You can start another timer in **${remaining}s**.`,
+                flags: MessageFlags.Ephemeral,
+            }
+        );
+    }
 
     if (!duration) {
         return reply({
