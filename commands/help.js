@@ -69,8 +69,6 @@ const PAGE_DATA = {
 				{
 					name: "Commands",
 					value: [
-						"</hotpotato:1524769754366214307> — Pass the potato before it explodes.",
-						"</roulette:1524763913676259408> — Take turns spinning the chamber.",
 						"</court:1524778488001859694> — Put someone on trial.",
 					].join("\n"),
 				},
@@ -79,8 +77,6 @@ const PAGE_DATA = {
 				{
 					name: "Commands",
 					value: [
-						"`nya!hotpotato` — Pass the potato before it explodes.",
-						"`nya!roulette` — Take turns spinning the chamber.",
 						"`nya!court` — Put someone on trial.",
 					].join("\n"),
 				},
@@ -125,7 +121,14 @@ const PAGE_DATA = {
 		fields: {
 			slash: [
 				{
-					name: "VC controls",
+					name: "VC Games",
+					value: [
+						"</hotpotato:1524769754366214307> — Pass the potato before it explodes.",
+						"</roulette:1524763913676259408> — Take turns spinning the chamber.",
+					].join("\n"),
+				},
+				{
+					name: "VC Controls",
 					value: [
 						"</vc user:1524755958390194301> — Pick one user and choose an action.",
 						"</vc all:1524755958390194301> — Pick an action for everyone in your current VC.",
@@ -133,11 +136,18 @@ const PAGE_DATA = {
 					].join("\n"),
 				},
 				{
-					name: "/vc afk",
+					name: "Keep VC Alive",
 					value: "</vc afk:1524755958390194301> — Turn keepalive on or off.",
 				},
 			],
 			prefix: [
+				{
+					name: "VC Games",
+					value: [
+						"`nya!hotpotato` — Pass the potato before it explodes.",
+						"`nya!roulette` — Take turns spinning the chamber.",
+					].join("\n"),
+				},
 				{
 					name: "Single Target",
 					value: [
@@ -275,11 +285,19 @@ const PAGE_DATA = {
 					name: "Help",
 					value: "`/help` — Open this menu.",
 				},
+				{
+					name: "Server Config",
+					value: "`/permsrole` — Control who can use VC commands and playful mode.",
+				},
 			],
 			prefix: [
 				{
 					name: "Help",
 					value: "`nya!help` — Open this menu.",
+				},
+				{
+					name: "Server Config",
+					value: "`nya!permsrole open` — Allow everyone. `nya!permsrole set @role` — Role-only. `nya!permsrole disable` — Block all.",
 				},
 			],
 		},
@@ -316,7 +334,7 @@ function buildHelpEmbed(page, mode, client) {
 		.setDescription(MODES[mode].intro)
 		.addFields(data.fields[mode] || [])
 		.setFooter({
-			text: `${MODES[mode].label} • Use the dropdown to switch categories`,
+			text: `${MODES[mode].label} • Created by ohclaww`,
 		});
 }
 

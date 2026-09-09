@@ -236,11 +236,13 @@ if (!TOKEN) {
 
 const marriageManager = require("./utils/marriageManager");
 const playfulManager = require("./utils/playfulManager");
+const permsManager = require("./utils/permsManager");
 
 async function start() {
     await Promise.all([
         marriageManager.init(),
         playfulManager.init(),
+        permsManager.init(),
     ]);
     client.login(TOKEN);
 }

@@ -9,6 +9,7 @@ const {
 const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
 const { sendTemp } = require("../utils/sendTemp");
+const { checkMember } = require("../utils/permsManager");
 
 const activeGames = new Map();
 
@@ -129,6 +130,10 @@ function createGameEmbed({
 
 async function runRoulette(source) {
   const ctx = createReplyAdapter(source);
+
+  const denied = checkMember(ctx.member);
+  if (denied) return ctx.sendMain({ content: denied, allowedMentions: { roles: [] } });
+
   await ctx.ack();
 
   const voiceChannel = ctx.member?.voice?.channel;

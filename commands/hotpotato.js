@@ -10,6 +10,7 @@ const { safeEdit } = require("../utils/safeEdit");
 const { checkCooldown } = require("../utils/cooldowns");
 const { sendTemp } = require("../utils/sendTemp");
 const hotPotatoes = require("../data/hotPotatoes");
+const { checkMember } = require("../utils/permsManager");
 
 const potatoStages = [
   "🥔 The potato seems harmless.",
@@ -141,6 +142,10 @@ async function updateBoard(game, customStatus = null) {
 
 async function runHotPotato(source) {
   const ctx = createContext(source);
+
+  const denied = checkMember(ctx.member);
+  if (denied) return ctx.sendMain({ content: denied, allowedMentions: { roles: [] } });
+
   await ctx.ack();
 
   const remaining = checkCooldown(ctx.user.id, "hotpotato", 60);

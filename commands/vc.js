@@ -13,6 +13,7 @@ const {
   entersState,
 } = require("@discordjs/voice");
 const { safeEdit } = require("../utils/safeEdit");
+const { checkMember } = require("../utils/permsManager");
 
 // ─── KEEPALIVE ────────────────────────────────────────────────────────────────
 //
@@ -42,6 +43,10 @@ async function resetKeepaliveNickname(guild) {
 
 // How long to wait before retrying after a failed reconnect (ms).
 const RECONNECT_DELAY = 5_000;
+// Max consecutive reconnect attempts before giving up for this guild.
+const MAX_RECONNECT_ATTEMPTS = 10;
+
+const reconnectAttempts = new Map(); // guildId → consecutive failure count
 
 // Attempt to join a channel and immediately start watching the connection.
 // Returns the new VoiceConnection.
@@ -68,6 +73,9 @@ async function connectAndWatch(guild, channelId) {
     try { connection.destroy(); } catch {}
     throw new Error("Could not reach Ready state.");
   }
+
+  // Success — reset the attempt counter.
+  reconnectAttempts.delete(guild.id);
 
   watchConnection(guild, channelId, connection);
   return connection;
@@ -127,6 +135,17 @@ function scheduleReconnect(guild, channelId) {
   // If a reconnect is already pending, don't stack another one.
   if (reconnectTimers.has(guild.id)) return;
 
+  const attempts = (reconnectAttempts.get(guild.id) || 0) + 1;
+  reconnectAttempts.set(guild.id, attempts);
+
+  if (attempts > MAX_RECONNECT_ATTEMPTS) {
+    console.error(
+      `[keepalive] Giving up reconnect for guild ${guild.id} channel ${channelId} after ${MAX_RECONNECT_ATTEMPTS} failed attempts.`
+    );
+    cleanupKeepalive(guild.id);
+    return;
+  }
+
   const timer = setTimeout(async () => {
     reconnectTimers.delete(guild.id);
 
@@ -136,7 +155,10 @@ function scheduleReconnect(guild, channelId) {
     try {
       await connectAndWatch(guild, channelId);
     } catch (err) {
-      console.error(`[keepalive] Reconnect failed for ${guild.id}:`, err.message);
+      console.error(
+        `[keepalive] Reconnect failed for guild ${guild.id} channel ${channelId} (attempt ${attempts}/${MAX_RECONNECT_ATTEMPTS}):`,
+        err.message
+      );
       // Retry again after another delay.
       scheduleReconnect(guild, channelId);
     }
@@ -152,6 +174,9 @@ function cleanupKeepalive(guildId) {
     clearTimeout(timer);
     reconnectTimers.delete(guildId);
   }
+
+  // Clear reconnect attempts counter
+  reconnectAttempts.delete(guildId);
 
   // Clean up connection watcher
   const watcher = connectionWatchers.get(guildId);
@@ -899,6 +924,9 @@ const vcCommand = {
     const ctx = contextFrom(message);
     const name = (invokedName || "").toLowerCase();
 
+    const denied = checkMember(message.member);
+    if (denied) return message.reply({ content: denied, allowedMentions: { roles: [] } });
+
     if (["stayvc", "afkvc", "keepvcalive"].includes(name)) return handleAfk(ctx, "join");
     if (["stopvcalive", "leavevc", "thxforkeepingthevcalive", "leave"].includes(name)) return handleAfk(ctx, "leave");
     if (name === "sleepcancel") return handleSleepCancel(ctx);
@@ -936,6 +964,9 @@ const vcCommand = {
   async executeInteraction(interaction) {
     const sub = interaction.options.getSubcommand();
     const ctx = contextFrom(interaction);
+
+    const denied = checkMember(interaction.member);
+    if (denied) return interaction.reply({ content: denied, flags: MessageFlags.Ephemeral, allowedMentions: { roles: [] } });
 
     await interaction.reply({ content: "⏳ On it...", flags: MessageFlags.Ephemeral });
 

@@ -328,6 +328,12 @@ module.exports = {
         ? "off"
         : "status";
 
+    if (action !== "status") {
+      if (!message.member.permissions.has("ManageGuild")) {
+        return message.reply("You need the **Manage Server** permission to change playful mode.");
+      }
+    }
+
     return applyPlayfulAction(action, message.guild, message.client, (text) =>
       message.reply(text)
     );
@@ -344,6 +350,15 @@ module.exports = {
     }
 
     const action = interaction.options.getString("action", true);
+
+    if (action !== "status") {
+      if (!interaction.member.permissions.has("ManageGuild")) {
+        return interaction.reply({
+          content: "You need the **Manage Server** permission to change playful mode.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
 
     return applyPlayfulAction(action, interaction.guild, interaction.client, (text) =>
       replyTemp(
