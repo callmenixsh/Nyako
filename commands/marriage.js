@@ -172,7 +172,7 @@ async function handleMarry(source) {
     return ctx.sendMain("One of you already has a pending proposal.");
   }
 
-  marriageManager.createProposal(ctx.user.id, targetMember.id);
+  await marriageManager.createProposal(ctx.user.id, targetMember.id);
 
   const proposalEnds = Math.floor(Date.now() / 1000) + 60;
 
@@ -243,7 +243,7 @@ async function handleMarry(source) {
     collector.stop(interaction.customId);
 
     if (interaction.customId === `marry_accept_${proposalMsg.id}`) {
-      marriageManager.marry(
+      await marriageManager.marry(
         {
           id: ctx.user.id,
           name: ctx.member.displayName,
@@ -256,7 +256,7 @@ async function handleMarry(source) {
         }
       );
 
-      marriageManager.removeProposal(ctx.user.id, targetMember.id);
+      await marriageManager.removeProposal(ctx.user.id, targetMember.id);
 
       return interaction.update({
         embeds: [
@@ -283,7 +283,7 @@ async function handleMarry(source) {
       });
     }
 
-    marriageManager.removeProposal(ctx.user.id, targetMember.id);
+    await marriageManager.removeProposal(ctx.user.id, targetMember.id);
 
     return interaction.update({
       embeds: [
@@ -299,7 +299,7 @@ async function handleMarry(source) {
   collector.on("end", async (_, reason) => {
     if (reason !== "time") return;
 
-    marriageManager.removeProposal(ctx.user.id, targetMember.id);
+    await marriageManager.removeProposal(ctx.user.id, targetMember.id);
 
     await safeEdit(proposalMsg, {
       embeds: [
@@ -337,7 +337,7 @@ async function handlePartner(source) {
       );
     }
 
-    marriageManager.updateMarriageUser(member.id, {
+    await marriageManager.updateMarriageUser(member.id, {
       name: member.displayName,
       avatar: member.user.displayAvatarURL({ extension: "png", size: 512 }),
     });
@@ -346,7 +346,7 @@ async function handlePartner(source) {
     const partner = await ctx.guild.members.fetch(partnerData.id).catch(() => null);
 
     if (partner) {
-      marriageManager.updateMarriageUser(partner.id, {
+      await marriageManager.updateMarriageUser(partner.id, {
         name: partner.displayName,
         avatar: partner.user.displayAvatarURL({ extension: "png", size: 512 }),
       });
@@ -419,11 +419,11 @@ async function handleDivorce(source) {
     return ctx.sendMain("A divorce request is already pending.");
   }
 
-  marriageManager.createDivorce(ctx.user.id, partner.id);
+  await marriageManager.createDivorce(ctx.user.id, partner.id);
 
   const partnerMember = await ctx.guild.members.fetch(partner.id).catch(() => null);
   if (!partnerMember) {
-    marriageManager.removeDivorce(ctx.user.id, partner.id);
+    await marriageManager.removeDivorce(ctx.user.id, partner.id);
     return ctx.sendMain("Your partner is no longer in this server.");
   }
 
@@ -489,8 +489,8 @@ async function handleDivorce(source) {
 
   collector.on("collect", async (interaction) => {
     if (interaction.customId === `divorce_accept_${uniqueId}`) {
-      marriageManager.divorce(ctx.user.id);
-      marriageManager.removeDivorce(ctx.user.id, partner.id);
+      await marriageManager.divorce(ctx.user.id);
+      await marriageManager.removeDivorce(ctx.user.id, partner.id);
       collector.stop("accepted");
 
       return interaction.update({
@@ -510,7 +510,7 @@ async function handleDivorce(source) {
       });
     }
 
-    marriageManager.removeDivorce(ctx.user.id, partner.id);
+    await marriageManager.removeDivorce(ctx.user.id, partner.id);
     collector.stop("declined");
 
     return interaction.update({
@@ -533,7 +533,7 @@ async function handleDivorce(source) {
   collector.on("end", async (_, reason) => {
     if (reason !== "time") return;
 
-    marriageManager.removeDivorce(ctx.user.id, partner.id);
+    await marriageManager.removeDivorce(ctx.user.id, partner.id);
 
     await safeEdit(loadingMsg, {
       embeds: [

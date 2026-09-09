@@ -129,6 +129,10 @@ function buildMock(target) {
 
 // Find a random usable text channel that recently got a human message,
 // so replies feel server-wide instead of always landing in one spot.
+// Only considers messages from the last 60 seconds to avoid replying to
+// stale/old messages.
+const MAX_MESSAGE_AGE_MS = 60_000;
+
 async function findMockTarget(guild) {
   const me = guild.members.me;
   const candidates = [...guild.channels.cache.values()].filter(
@@ -145,11 +149,15 @@ async function findMockTarget(guild) {
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
 
+  const cutoff = Date.now() - MAX_MESSAGE_AGE_MS;
+
   for (const channel of candidates) {
     try {
       const fetched = await channel.messages.fetch({ limit: 10 });
-      const humans = fetched.filter((m) => !m.author.bot && !!m.content.trim());
-      if (humans.size) return { channel, target: humans.random() };
+      const recent = fetched.filter(
+        (m) => !m.author.bot && !!m.content.trim() && m.createdTimestamp > cutoff,
+      );
+      if (recent.size) return { channel, target: recent.random() };
     } catch {
       // locked/deleted channel — keep hunting
     }
@@ -243,7 +251,7 @@ async function stopForGuild(guild) {
   }
 
   await restoreNickname(guild);
-  return playfulManager.disable(guild.id);
+  return await playfulManager.disable(guild.id);
 }
 
 // ─── Command UI ───────────────────────────────────────────────────────────────
@@ -275,7 +283,7 @@ const data = new SlashCommandBuilder()
 
 async function applyPlayfulAction(action, guild, client, send) {
   if (action === "on") {
-    playfulManager.setEnabled(guild.id);
+    await playfulManager.setEnabled(guild.id);
     ensureScheduled(client, guild.id);
     return send("🐾 Playful mode **on** (server-wide) — I'll be chaotic every now and then.");
   }

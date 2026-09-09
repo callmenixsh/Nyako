@@ -234,4 +234,15 @@ if (!TOKEN) {
     process.exit(1);
 }
 
-client.login(TOKEN);
+const marriageManager = require("./utils/marriageManager");
+const playfulManager = require("./utils/playfulManager");
+
+async function start() {
+    await Promise.all([
+        marriageManager.init(),
+        playfulManager.init(),
+    ]);
+    client.login(TOKEN);
+}
+
+start();
